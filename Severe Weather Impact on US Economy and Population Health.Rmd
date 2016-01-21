@@ -7,16 +7,19 @@ output:
       number_sections: yes
       theme: united
       toc: yes
+      toc_depth: 4
 ---
 
 # Synopsis #
-* The analysis explores two aspects of the impact of severe weather events in the U.S.
-** Which event types are most harmful with respect to population health.
-** Which event types have the greatest economic consequences.
-* The analysis will use historic data to demonstrate which event types are the most impactful, using data from the Storm Events Database maintained by the U.S. National Oceanic and Atmospheric Administration.
-* Data for events beginning prior to 1st January 1996 has been excluded, as before this point only a small number of specific event types were being tracked.
-* The remaining data comprises of over 650K observations from 1st January 1996 onwards, for all severe weather event types.
-* Our anlysis will focus on the variables for fatality and injury counts, as well as property and crop damage in USD.
+* This analysis explores two aspects of the impact of severe weather events in the U.S.
+    * Which event types are most harmful with respect to population health.
+    * Which event types have the greatest economic consequences.
+* The analysis will use historic data to demonstrate which event types have the greatest impact, using data from the Storm Events Database maintained by the U.S. National Oceanic and Atmospheric Administration.
+* The analysis will focus on the variables for fatality and injury counts, as well as property and crop damage in USD.
+* Based on the number of fatalities, events grouped under the type of wind/storm/tornado have the greatest impact on population health, with 2342 fatalitities, which is 27.2% of the total fatalitities in the sample.
+* Based on the number of injuries, events grouped under the type of wind/storm/tornado have the greatest impact on population health, with 27395 injuries, which is 48.8% of the total injuries in the sample.
+* The same three event types are the top 3 most impactful on population health when looking at the data based on either fatalities or injuries - wind/storm/tornado, heat, flood.
+* Based on the value of damages in USD, flood is the most impactful with a total damage value of $166B, which is 41% of the total value for all damages in the sample. The top 4 of the 11 event types, account for $350B USD of damages, which is 88% of the total.
 
 # Data processing #
 
@@ -27,7 +30,7 @@ library(lubridate)
 library(ggplot2)
 ```
 
-## Download the data ##
+## Download data ##
 ```{r echo=TRUE, cache=TRUE}
 # Check if the file already exists locally before downloading.
 if(file.exists("data.bz2") == FALSE) {
@@ -37,19 +40,19 @@ if(file.exists("data.bz2") == FALSE) {
 }
 ```
 
-## Subset by year and remove variables that are not required ##
+## Subsetting ##
 Refer to the [NOAA Storm Events Database Details](http://www.ncdc.noaa.gov/stormevents/details.jsp) webpage for information about the event types being monitored by year. Monitoring for all events started in January 1996 and continues to the present day. Our analysis is interested in examining all events and understanding which event types are most harmful to population health and which event types have the greatest economic consequences. We will exclude data for all years before 1996. The resulting subsetted data represents monitoring of all event types for 1996 onwards and still provides a sizable sample across many years.
 ```{r echo=TRUE, cache=TRUE}
-# Read the data archive.
+# Read the data archive file.
 weatherData <- tbl_df(read.csv("data.bz2"))
 
 # Convert the BGN_DATE variable from factor to date.
 weatherData$BGN_DATE <- as.Date(weatherData$BGN_DATE, format = "%m/%d/%Y")
 
-# Filter out observations where variable BGN_DATE is before 1996.
+# Filter out observations where the BGN_DATE variable is before 1996.
 weatherData <- filter(weatherData, BGN_DATE %within% interval(ymd(19960101), Sys.Date()))
 
-# Select only the required variables.
+# Select only the relevant variables.
 weatherData <- weatherData %>%
 select(event = EVTYPE,
        fatalities = FATALITIES,
@@ -60,9 +63,9 @@ select(event = EVTYPE,
        crop_damage_function = CROPDMGEXP)
 ```
 
-## Sort out the property damage value ##
+## Property damage value ##
 ```{r echo=TRUE, cache=TRUE}
-# Convert the property damage function column to character.
+# Convert to character.
 weatherData$property_damage_function <- as.character(weatherData$property_damage_function)
 
 # Convert the values ready for multiplication.
@@ -81,9 +84,9 @@ weatherData <- weatherData %>%
     select(-property_damage, -property_damage_function)
 ```
 
-## Sort out the crop damage value ##
+## Crop damage value ##
 ```{r echo=TRUE, cache=TRUE}
-# Convert the crop damage function column to character.
+# Convert to character.
 weatherData$crop_damage_function <- as.character(weatherData$crop_damage_function)
 
 # Convert the values ready for multiplication.
@@ -102,7 +105,7 @@ weatherData <- weatherData %>%
     select(-crop_damage, -crop_damage_function)
 ```
 
-## Combine the property and crop damage values into one column ##
+## Combine property and crop damage values ##
 ```{r echo=TRUE, cache=TRUE}
 # Calculate the new column and drop the old ones.
 weatherData <- weatherData %>%
@@ -110,26 +113,317 @@ weatherData <- weatherData %>%
     select(-property_damage_usd, -crop_damage_usd)
 ```
 
-## Prepare event economic impact data ##
+## Prepare economic damage data ##
 ```{r echo=TRUE, cache=TRUE}
 # Select required columns and filter out zero values.
 economicData <- weatherData %>% 
     select(event, damage_usd) %>%
     filter(damage_usd > 0)
 
-# Group by event and sum the damages.
+# Group by event and then sum.
 economicData <- economicData %>% 
     group_by(event) %>%
     summarise_each(funs(sum))
 ```
 
-## Prepare event health impact data ##
+## Prepare health data ##
+```{r echo=TRUE, cache=TRUE}
+# Select required columns, groupo by event and then sum.
+healthData <- weatherData %>% 
+    select(event, fatalities, injuries) %>%
+    group_by(event) %>%
+    summarise_each(funs(sum))
+
+# Filter out events where there were no fatalities or injuries.
+healthData <- healthData %>%
+    filter(fatalities > 0 | injuries > 0)
+```
 
 # Results #
 
+## Summary ##
+
+Based on the number of fatalities, events grouped under the type of wind/storm/tornado have the greatest impact on population health, with 2342 fatalitities, which is 27.2% of the total fatalitities in the sample.
+
+Based on the number of injuries, events grouped under the type of wind/storm/tornado have the greatest impact on population health, with 27395 injuries, which is 48.8% of the total injuries in the sample.
+
+The same three event types are the top 3 most impactful on population health when looking at the data based on either fatalities or injuries.
+
+* WIND/STORM/TORNADO.
+* HEAT.
+* FLOOD.
+
+Based on the value of damages in USD, flood is the most impactful with a total damage value of $166B, which is 41% of the total value for all damages in the sample. The top 4 of the 11 event types, account for $350B USD of damages, which is 88% of the total.
+
+* FLOOD, $166B, 41%.
+* HURRICANE/TYPHOON, $87B, 22%.
+* RAIN/SURGE, $49B, 12%.
+* WIND/STORM/TORNADO, $48B, 12%.
+
+## Population health impact based on fatalities ##
+
+### Drop injuries variable and filter for fatalities above zero ###
+```{r echo=TRUE, cache=TRUE}
+fatalitiesData <- healthData %>%
+    select(-injuries) %>%
+    filter(fatalities > 0)
+```
+
+### Add column for fatalities as a percentage of the total ###
+Add a percent column to show the proportion of fatalities for each event, as a percent of the total for all events.
+```{r echo=TRUE, cache=TRUE}
+fatalitiesData <- fatalitiesData %>%
+    mutate(percent = round((fatalities / sum(fatalitiesData$fatalities) * 100), 3))
+```
+Examine the data with the quantile function.
+```{r echo=TRUE, cache=TRUE}
+quantile(fatalitiesData$percent, seq(0, 1, 0.1))
+```
+
+### Reducing the number of event types ###
+Between 50% to 55% of the events have a fatalities percent no greater than 0.05%. Subset for these events and check the total sum of the fatalities percent for the subset to verify if the data can be removed without significant impact on the analysis.
+```{r echo=TRUE, cache=TRUE}
+arrange(fatalitiesData[fatalitiesData$percent <= 0.05,], desc(percent))
+round((sum(fatalitiesData[fatalitiesData$percent <= 0.05,]$percent) / sum(fatalitiesData$percent)) * 100, 3)
+```
+The 60 events to be removed only represent 1.221% of the total fatalities for all events, removing these 60 event types should not significantly affect our analysis.
+```{r echo=TRUE, cache=TRUE}
+fatalitiesData <- fatalitiesData[fatalitiesData$percent > 0.05,]
+```
+
+### Tidy up ready for analysis ###
+```{r echo=TRUE, cache=TRUE}
+# Drop the percent variable.
+fatalitiesData <- select(fatalitiesData, -percent)
+
+# Convert the event variable to character.
+fatalitiesData$event <- as.character(fatalitiesData$event)
+
+# Tidy up the events into sensible groupings.
+fatalitiesData$event[fatalitiesData$event %in% c("EXCESSIVE HEAT",
+                                                 "HEAT")] <- "HEAT"
+
+fatalitiesData$event[fatalitiesData$event %in% c("FLASH FLOOD",
+                                                 "FLOOD",
+                                                 "URBAN/SML STREAM FLD")] <- "FLOOD"
+
+fatalitiesData$event[fatalitiesData$event %in% c("LIGHTNING")] <- "LIGHTNING"
+
+fatalitiesData$event[fatalitiesData$event %in% c("RIP CURRENT",
+                                                 "RIP CURRENTS")] <- "RIP CURRENT"
+
+fatalitiesData$event[fatalitiesData$event %in% c("TSTM WIND",
+                                                 "THUNDERSTORM WIND",
+                                                 "STRONG WIND",
+                                                 "HIGH WIND",
+                                                 "TROPICAL STORM",
+                                                 "MARINE STRONG WIND",
+                                                 "MARINE THUNDERSTORM WIND",
+                                                 "MARINE TSTM WIND",
+                                                 "TORNADO",
+                                                 "STRONG WINDS",
+                                                 "ROUGH SEAS",
+                                                 "WIND")] <- "WIND/STORM/TORNADO"
+
+fatalitiesData$event[fatalitiesData$event %in% c("AVALANCHE",
+                                                 "LANDSLIDE")] <- "AVALANCHE/LANDSLIDE"
+
+fatalitiesData$event[fatalitiesData$event %in% c("EXTREME COLD/WIND CHILL",
+                                                 "EXTREME COLD",
+                                                 "COLD/WIND CHILL",
+                                                 "COLD",
+                                                 "EXTREME WINDCHILL")] <- "COLD/WINDCHILL"
+
+fatalitiesData$event[fatalitiesData$event %in% c("ICE STORM",
+                                                 "BLIZZARD",
+                                                 "HEAVY SNOW",
+                                                 "COLD AND SNOW",
+                                                 "WINTER STORM",
+                                                 "WINTER WEATHER",
+                                                 "WINTER WEATHER/MIX")] <- "SNOW/ICE"
+
+fatalitiesData$event[fatalitiesData$event %in% c("HEAVY RAIN",
+                                                 "HIGH SURF",
+                                                 "HEAVY SURF",
+                                                 "HEAVY SURF/HIGH SURF",
+                                                 "STORM SURGE/TIDE")] <- "RAIN/SURGE/SURF"
+
+fatalitiesData$event[fatalitiesData$event %in% c("WILDFIRE",
+                                                 "WILD/FOREST FIRE")] <- "FIRE"
+
+fatalitiesData$event[fatalitiesData$event %in% c("HURRICANE/TYPHOON",
+                                                 "HURRICANE",
+                                                 "TSUNAMI")] <- "HURRICANE/TYPHOON/TSUNAMI"
+
+fatalitiesData$event[fatalitiesData$event %in% c("DUST STORM")] <- "DUST STORM"
+
+fatalitiesData$event[fatalitiesData$event %in% c("DENSE FOG",
+                                                 "FOG")] <- "FOG"
+
+fatalitiesData$event[fatalitiesData$event %in% c("HAIL",
+                                                 "TSTM WIND/HAIL")] <- "HAIL"
+
+# Group on event and sum the fatalities value.
+fatalitiesData <- fatalitiesData %>% 
+    group_by(event) %>%
+    summarise_each(funs(sum))
+
+# Add back the percentage variable and sort on it.
+fatalitiesData <- fatalitiesData %>%
+    mutate(percentage = round((fatalities / sum(fatalitiesData$fatalities) * 100), 1)) %>%
+    arrange(desc(percentage))
+```
+
+### Plot the fatalities data ###
+```{r echo=TRUE, cache=TRUE}
+# Create the plot.
+p <- ggplot(data = fatalitiesData, aes(x = event, y = fatalities)) +
+    geom_bar(stat="identity") +
+    xlab("Event Type") +
+    ylab("Number of Fatalities") +
+    ggtitle("Number of Fatalities by Event Type") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+print(p)
+```
+
+The plot shows that 3 event types stand out as having significantly higher fatalities.
+
+### Analysis of fatalities data ###
+```{r echo=TRUE, cache=TRUE}
+sum(fatalitiesData$fatalities)
+```
+There is a total of 8624 fatalities across all events in our sample.
+```{r echo=TRUE, cache=TRUE}
+print(fatalitiesData)
+```
+Ranked by the number of fatalities in descending order, the top 3 events types are considerable higher than the others.
+```{r echo=TRUE, cache=TRUE}
+colSums(fatalitiesData[1:3,2:3])
+```
+The top 3 event types account for 5705 fatalities, which is 66.2% of the total.
+
+## Population health impact based on injuries ##
+
+### Drop fatalities variable and filter for injuries above zero ###
+```{r echo=TRUE, cache=TRUE}
+injuriesData <- healthData %>%
+    select(-fatalities) %>%
+    filter(injuries > 0)
+```
+
+### Add column for injuries as a percentage of the total ###
+Add a percent column to show the proportion of injuries for each event, as a percent of the total for all events.
+```{r echo=TRUE, cache=TRUE}
+injuriesData <- injuriesData %>%
+    mutate(percent = round((injuries / sum(injuriesData$injuries) * 100), 3))
+```
+Examine the data with the quantile function.
+```{r echo=TRUE, cache=TRUE}
+quantile(injuriesData$percent, seq(0, 1, 0.05))
+```
+
+### Reducing the number of event types ###
+Between 75% to 80% of the events have an injuries percent no greater than 0.3%. Subset for these events and check the total sum of the injuries percent for the subset to verify if the data can be removed without significant impact on the analysis.
+```{r echo=TRUE, cache=TRUE}
+arrange(injuriesData[injuriesData$percent <= 0.3,], desc(percent))
+round((sum(injuriesData[injuriesData$percent <= 0.3,]$percent) / sum(injuriesData$percent)) * 100, 3)
+```
+The 80 events to be removed only represent 3.245% of the total injuries for all events, removing these 80 event types should not significantly affect our analysis.
+```{r echo=TRUE, cache=TRUE}
+injuriesData <- injuriesData[injuriesData$percent > 0.3,]
+```
+
+### Tidy up ready for analysis ###
+```{r echo=TRUE, cache=TRUE}
+# Drop the percent variable.
+injuriesData <- select(injuriesData, -percent)
+
+# Convert the event variable to character.
+injuriesData$event <- as.character(injuriesData$event)
+
+# Tidy up the events into sensible groupings.
+injuriesData$event[injuriesData$event %in% c("EXCESSIVE HEAT",
+                                                 "HEAT")] <- "HEAT"
+
+injuriesData$event[injuriesData$event %in% c("FLASH FLOOD",
+                                                 "FLOOD")] <- "FLOOD"
+
+injuriesData$event[injuriesData$event %in% c("LIGHTNING")] <- "LIGHTNING"
+
+injuriesData$event[injuriesData$event %in% c("RIP CURRENT",
+                                                 "RIP CURRENTS")] <- "RIP CURRENT"
+
+injuriesData$event[injuriesData$event %in% c("DUST STORM")] <- "DUST STORM"
+
+injuriesData$event[injuriesData$event %in% c("FOG")] <- "FOG"
+
+injuriesData$event[injuriesData$event %in% c("WILDFIRE",
+                                                 "WILD/FOREST FIRE")] <- "FIRE"
+
+injuriesData$event[injuriesData$event %in% c("HURRICANE/TYPHOON")] <- "HURRICANE/TYPHOON"
+
+injuriesData$event[injuriesData$event %in% c("HAIL")] <- "HAIL"
+
+injuriesData$event[injuriesData$event %in% c("TSTM WIND",
+                                                 "THUNDERSTORM WIND",
+                                                 "STRONG WIND",
+                                                 "HIGH WIND",
+                                                 "TROPICAL STORM",
+                                                 "TORNADO")] <- "WIND/STORM/TORNADO"
+
+injuriesData$event[injuriesData$event %in% c("ICE STORM",
+                                                 "BLIZZARD",
+                                                 "HEAVY SNOW",
+                                                 "WINTER STORM",
+                                                 "WINTER WEATHER",
+                                                 "GLAZE")] <- "SNOW/ICE"
+
+injuriesData$event[injuriesData$event %in% c("HEAVY RAIN")] <- "RAIN"
+
+# Group on event and sum the injuries value.
+injuriesData <- injuriesData %>% 
+    group_by(event) %>%
+    summarise_each(funs(sum))
+
+# Add back the percentage variable and sort on it.
+injuriesData <- injuriesData %>%
+    mutate(percentage = round((injuries / sum(injuriesData$injuries) * 100), 1)) %>%
+    arrange(desc(percentage))
+```
+
+#### Plot the injuries data ####
+```{r echo=TRUE, cache=TRUE}
+# Create the plot.
+p <- ggplot(data = injuriesData, aes(x = event, y = injuries)) +
+    geom_bar(stat="identity") +
+    xlab("Event Type") +
+    ylab("Number of Injuries") +
+    ggtitle("Number of Injuries by Event Type") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+print(p)
+```
+
+The plot shows that 1 event type stands out as having significantly higher injuries.
+
+### Analysis of injuries data ###
+```{r echo=TRUE, cache=TRUE}
+sum(injuriesData$injuries)
+```
+There is a total of 56094 injuries across all events in our sample.
+```{r echo=TRUE, cache=TRUE}
+print(injuriesData)
+```
+Ranked by the number of injuries in descending order, the top event type is considerably higher than the others.
+```{r echo=TRUE, cache=TRUE}
+colSums(injuriesData[1,2:3])
+```
+The top event type accounts for 27395 injuries, which is 48.8% of the total.
+
 ## Events with the greatest economic consequences ##
 
-### Add new column for event damages as a percentage of total ###
+### Add new column for event damages as a percentage of the total ###
 Add a new percent column to show the proportion of the damages for each event, as a percent of the total for all events.
 ```{r echo=TRUE, cache=TRUE}
 economicData <- mutate(economicData, percent = round((damage_usd / sum(economicData$damage_usd) * 100), 1))
@@ -139,10 +433,10 @@ Examine the data with the quantile function.
 quantile(economicData$percent, seq(0, 1, 0.05))
 ```
 
-### Reducing the number of events ###
-We can see that 85% of our events have a damage percentage less than or equal to 0.025%. Subset for these events and check the total sum of the damages for the subset to verify if they can be removed without significantly impacting the total damages for the complete dataset.
+### Reducing the number of event types ###
+85% of the events have a damage percentage less than or equal to 0.025%. Subset for these events and check the total sum of the damages percent for the subset to verify if the data can be removed without significant impact on the analysis.
 ```{r echo=TRUE, cache=TRUE}
-economicData[economicData$percent <= 0.025,]
+arrange(economicData[economicData$percent <= 0.025,], desc(percent))
 round((sum(economicData[economicData$percent <= 0.025,]$damage_usd) / sum(economicData$damage_usd)) * 100, 3)
 ```
 The 158 events to be removed only represent a damage value of 0.335% of the total damages for all events, removing these 159 event types should not significantly affect our analysis.
@@ -150,7 +444,7 @@ The 158 events to be removed only represent a damage value of 0.335% of the tota
 economicData <- economicData[economicData$percent > 0.025,]
 ```
 
-### Tidy up of the variables ###
+### Tidy up ready for analysis ###
 ```{r echo=TRUE, cache=TRUE}
 # Drop the percent variable.
 economicData <- select(economicData, -percent)
@@ -205,9 +499,15 @@ economicData <- economicData %>%
 
 # Add a new variable for the damage in billions of USD for easier plotting.
 economicData <- mutate(economicData, damage_usd_billions = round(damage_usd / 1000000000, 2))
+
+# Add back the percentage variable and sort on it.
+economicData <- economicData %>%
+    mutate(percentage = round((damage_usd / sum(economicData$damage_usd) * 100), 1)) %>%
+    select(-damage_usd) %>%
+    arrange(desc(percentage))
 ```
 
-### Plot the economic impact data ###
+### Plot the economic damage data ###
 ```{r echo=TRUE, cache=TRUE}
 # Create the plot.
 p <- ggplot(data = economicData, aes(x = event, y = damage_usd_billions)) +
@@ -220,22 +520,18 @@ p <- ggplot(data = economicData, aes(x = event, y = damage_usd_billions)) +
 print(p)
 ```
 
-### Print summary table ###
-```{r echo=TRUE, cache=TRUE}
-economicData <- economicData %>%
-    mutate(percentage = round((damage_usd / sum(economicData$damage_usd) * 100), 1)) %>%
-    select(-damage_usd) %>%
+The plot shows that 4 event types stand out as having significantly higher damages.
 
+### Analysis of the economic damage data ###
+```{r echo=TRUE, cache=TRUE}
+sum(economicData$damage_usd_billions)
+```
+There is a total of $400.16B USD of damage across all events in our sample.
+```{r echo=TRUE, cache=TRUE}
 print(economicData)
 ```
-
-### Summary of event economic impact ###
-The top four event types by damage value, account for 87% of the total damage value across all events.
-
-Event Type | Damage as % of Total | Damage USD | Notes
------------|----------------------|------------|------
-FLOOD | 41% | $165B |
-HURRICANE/TYPHOON | 22% | $87B |
-RAIN/SURGE | 12% | $49B |
-WIND/STORM/TORNADO | 12% | $48B |
-OTHERS | 13% | $51B | Covers the remaining 7 event types.
+Ranked by the value of the damage in descending order, the top 4 events types are considerably higher than the others.
+```{r echo=TRUE, cache=TRUE}
+colSums(economicData[1:4,2:3])
+```
+The top 4 event types account for $350.08B USD of damage, which is 87.50% of the total.
